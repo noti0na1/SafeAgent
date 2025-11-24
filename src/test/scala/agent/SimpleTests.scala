@@ -117,7 +117,7 @@ object SimpleTests extends TestSuite:
       val reverseTool = new ReverseTool()
 
       // Test the tool directly
-      given State = State(AgentConfig())
+      given State = State()
       val result = reverseTool.invoke(ReverseInput("hello"))
 
       result match
@@ -141,7 +141,7 @@ object SimpleTests extends TestSuite:
       val randomTool = new RandomNumberTool()
 
       // Test the tool directly
-      given State = State(AgentConfig())
+      given State = State()
       val result = randomTool.invoke(())
 
       result match
@@ -165,7 +165,7 @@ object SimpleTests extends TestSuite:
       val logTool = new LogTool()
 
       // Test the tool directly
-      given State = State(AgentConfig())
+      given State = State()
       val result = logTool.invoke(LogInput("test message"))
 
       result match
@@ -211,7 +211,7 @@ object SimpleTests extends TestSuite:
     }
 
     test("memoryTools - should store and retrieve values") {
-      given state: State = State(AgentConfig())
+      given state: State = State()
 
       val storeTool = new StoreMemoryTool()
       val retrieveTool = new RetrieveMemoryTool()
@@ -234,7 +234,7 @@ object SimpleTests extends TestSuite:
     }
 
     test("memoryTools - should return not found for missing keys") {
-      given state: State = State(AgentConfig())
+      given state: State = State()
 
       val retrieveTool = new RetrieveMemoryTool()
 
@@ -250,7 +250,7 @@ object SimpleTests extends TestSuite:
     }
 
     test("memoryTools - should list stored keys") {
-      given state: State = State(AgentConfig())
+      given state: State = State()
 
       val storeTool = new StoreMemoryTool()
       val listTool = new ListMemoryTool()
@@ -271,7 +271,7 @@ object SimpleTests extends TestSuite:
     }
 
     test("memoryTools - should list empty keys when no memory stored") {
-      given state: State = State(AgentConfig())
+      given state: State = State()
 
       val listTool = new ListMemoryTool()
 
@@ -286,7 +286,7 @@ object SimpleTests extends TestSuite:
     }
 
     test("memoryTools - should update existing keys") {
-      given state: State = State(AgentConfig())
+      given state: State = State()
 
       val storeTool = new StoreMemoryTool()
       val retrieveTool = new RetrieveMemoryTool()
@@ -308,7 +308,7 @@ object SimpleTests extends TestSuite:
     }
 
     test("memoryTools - should persist across tool invocations with same state") {
-      given state: State = State(AgentConfig())
+      given state: State = State()
 
       val storeTool = new StoreMemoryTool()
       val retrieveTool = new RetrieveMemoryTool()
