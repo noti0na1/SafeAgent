@@ -2,7 +2,7 @@ package agent.tools
 
 import agent.core.{Tool, ToolBase, ToolDataType, State}
 import upickle.default.*
-import scala.util.{Try, Success, Failure}
+import scala.util.Try
 import scala.collection.mutable
 
 // Shared memory key for all memory tools
@@ -32,41 +32,21 @@ case class StoreMemoryInput(
 ) derives ToolDataType
 
 /**
- *  Output from storing a memory.
- *
- *  @param key The key that was stored
- *  @param value The value that was stored
- *  @param message Status message
- */
-case class StoreMemoryOutput(
-  key: String,
-  value: String,
-  message: String
-) derives ToolDataType
-
-/**
  *  Tool for storing a key-value pair in memory.
  *
  *  This allows the agent to persist information in the State that can be
  *  retrieved in later interactions.
  */
-class StoreMemoryTool extends Tool[StoreMemoryInput, StoreMemoryOutput]:
+class StoreMemoryTool extends Tool[StoreMemoryInput, Unit]:
   override val name: String = "store_memory"
 
   override val description: String =
     "Store a key-value pair in memory for later retrieval. Use this to remember important information across interactions."
 
-  override def invoke(input: StoreMemoryInput)(using state: State): Try[StoreMemoryOutput] =
+  override def invoke(input: StoreMemoryInput)(using state: State): Try[Unit] =
     Try {
-      val memory = state.getOrElse(MemoryTools.memoryKey, mutable.Map.empty[String, String])
+      val memory = state.getOrElseUpdate(MemoryTools.memoryKey, mutable.Map.empty[String, String])
       memory(input.key) = input.value
-      state.set(MemoryTools.memoryKey, memory)
-
-      StoreMemoryOutput(
-        key = input.key,
-        value = input.value,
-        message = s"Successfully stored value for key '${input.key}'"
-      )
     }
 
 // ============================================================================
@@ -88,13 +68,11 @@ case class RetrieveMemoryInput(
  *  @param key The key that was requested
  *  @param value The retrieved value (if found)
  *  @param found Whether the key was found
- *  @param message Status message
  */
 case class RetrieveMemoryOutput(
   key: String,
   value: Option[String],
-  found: Boolean,
-  message: String
+  found: Boolean
 ) derives ToolDataType
 
 /**
@@ -108,22 +86,20 @@ class RetrieveMemoryTool extends Tool[RetrieveMemoryInput, RetrieveMemoryOutput]
 
   override def invoke(input: RetrieveMemoryInput)(using state: State): Try[RetrieveMemoryOutput] =
     Try {
-      val memory = state.getOrElse(MemoryTools.memoryKey, mutable.Map.empty[String, String])
+      val memory = state.getOrElseUpdate(MemoryTools.memoryKey, mutable.Map.empty[String, String])
 
       memory.get(input.key) match
         case Some(value) =>
           RetrieveMemoryOutput(
             key = input.key,
             value = Some(value),
-            found = true,
-            message = s"Successfully retrieved value for key '${input.key}'"
+            found = true
           )
         case None =>
           RetrieveMemoryOutput(
             key = input.key,
             value = None,
-            found = false,
-            message = s"No value found for key '${input.key}'"
+            found = false
           )
     }
 
@@ -136,12 +112,10 @@ class RetrieveMemoryTool extends Tool[RetrieveMemoryInput, RetrieveMemoryOutput]
  *
  *  @param keys List of all memory keys
  *  @param count Number of keys found
- *  @param message Status message
  */
 case class ListMemoryOutput(
   keys: List[String],
-  count: Int,
-  message: String
+  count: Int
 ) derives ToolDataType
 
 /**
@@ -155,12 +129,11 @@ class ListMemoryTool extends Tool[Unit, ListMemoryOutput]:
 
   override def invoke(input: Unit)(using state: State): Try[ListMemoryOutput] =
     Try {
-      val memory = state.getOrElse(MemoryTools.memoryKey, mutable.Map.empty[String, String])
+      val memory = state.getOrElseUpdate(MemoryTools.memoryKey, mutable.Map.empty[String, String])
       val keys = memory.keys.toList.sorted
 
       ListMemoryOutput(
         keys = keys,
-        count = keys.size,
-        message = if keys.isEmpty then "No memories stored" else s"Found ${keys.size} memory key(s)"
+        count = keys.size
       )
     }

@@ -1,6 +1,6 @@
 package agent.core
 
-import scala.util.{Try, Success, Failure}
+import scala.util.Try
 
 /**
  *  Base trait for agents that can interact with LLMs and use tools.

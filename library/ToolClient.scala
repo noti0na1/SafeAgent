@@ -1,56 +1,43 @@
 // Tool calling client library
 //> using dep "com.lihaoyi::upickle:4.4.1"
-
-import java.net.{HttpURLConnection, URL}
-import java.io.{BufferedReader, InputStreamReader, OutputStream}
-import upickle.default.*
-
-case class ToolResponse(
-  result: String,
-  success: Boolean,
-  error: Option[String] = None
-) derives ReadWriter
+//> using dep "com.lihaoyi::requests:0.9.0"
 
 def callTool(toolName: String, arguments: String): String = {
   val port = sys.env.getOrElse("TOOL_SERVER_PORT", "8080").toInt
-  val url = new URL(s"http://localhost:$port/")
-  val connection = url.openConnection().asInstanceOf[HttpURLConnection]
+  val url = s"http://localhost:$port/"
+
+  val requestBody = ujson.Obj(
+    "toolName" -> toolName,
+    "arguments" -> arguments
+  )
 
   try {
-    connection.setRequestMethod("POST")
-    connection.setDoOutput(true)
-    connection.setRequestProperty("Content-Type", "application/json")
+    val response = requests.post(
+      url,
+      data = requestBody.toString(),
+      headers = Map("Content-Type" -> "application/json")
+    )
 
-    val requestBody = s"""{"toolName":"$toolName","arguments":"${arguments.replace("\"", "\\\"")}"}"""
+    if (response.statusCode == 200) {
+      val json = ujson.read(response.text())
 
-    val os: OutputStream = connection.getOutputStream
-    os.write(requestBody.getBytes("UTF-8"))
-    os.close()
-
-    val responseCode = connection.getResponseCode
-    if (responseCode == 200) {
-      val in = new BufferedReader(new InputStreamReader(connection.getInputStream))
-      val response = new StringBuilder
-      var line = in.readLine()
-      while (line != null) {
-        response.append(line)
-        line = in.readLine()
-      }
-      in.close()
-
-      val toolResponse = read[ToolResponse](response.toString)
-      if (toolResponse.success) {
-        toolResponse.result
+      if (json("success").bool) {
+        json("result").str
       } else {
-        val errorMsg = toolResponse.error.getOrElse("Unknown error")
+        val errorMsg = json.obj.get("error").map(_.str).getOrElse("Unknown error")
         println(s"Error calling tool '$toolName': $errorMsg")
         sys.exit(1)
       }
     } else {
-      println(s"Error: HTTP $responseCode - Failed to call tool '$toolName'")
+      println(s"Error: HTTP ${response.statusCode} - Failed to call tool '$toolName'")
       sys.exit(1)
     }
-  } finally {
-    connection.disconnect()
+  } catch {
+    case e: requests.RequestFailedException =>
+      println(s"Error calling tool '$toolName': ${e.getMessage}")
+      sys.exit(1)
+    case e: Exception =>
+      println(s"Unexpected error calling tool '$toolName': ${e.getMessage}")
+      sys.exit(1)
   }
 }

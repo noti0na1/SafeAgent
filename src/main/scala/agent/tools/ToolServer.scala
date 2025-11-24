@@ -5,8 +5,7 @@ import upickle.default.*
 import scala.util.{Try, Success, Failure}
 import java.net.{ServerSocket, Socket}
 import java.io.{BufferedReader, InputStreamReader, PrintWriter}
-import scala.concurrent.{Future, ExecutionContext, Promise}
-import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Promise
 
 /**
  * Request format for tool execution over HTTP

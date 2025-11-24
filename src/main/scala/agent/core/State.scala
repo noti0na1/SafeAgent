@@ -13,7 +13,13 @@ class State(val agentConfig: AgentConfig):
     storage(key) = value
 
   def get[T](key: State.Key[T]): Option[T] =
-    storage.get(key).asInstanceOf[Option[T]].orElse(key.default)
-
-  def getOrElse[T](key: State.Key[T], default: T): T =
-    get(key).getOrElse(default)
+    storage.get(key) match
+      case Some(value) => Some(value.asInstanceOf[T])
+      case None => key.default match
+        case Some(defaultValue) => 
+          storage(key) = defaultValue
+          Some(defaultValue)
+        case None => None
+      
+  def getOrElseUpdate[T](key: State.Key[T], default: T): T =
+    storage.getOrElseUpdate(key, default).asInstanceOf[T]

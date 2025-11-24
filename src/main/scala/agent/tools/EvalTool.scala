@@ -2,7 +2,7 @@ package agent.tools
 
 import agent.core.{Tool, ToolDataType, ToolBase, State}
 import upickle.default.*
-import scala.util.{Try, Success, Failure}
+import scala.util.{Try, Success}
 import scala.sys.process.*
 
 /**
@@ -45,7 +45,7 @@ class EvalTool(availableTools: List[ToolBase]) extends Tool[EvalInput, EvalOutpu
     Try {
       // Start the tool server
       val toolServer = new ToolServer(
-        availableTools.filter(_.name != this.name), // Exclude itself to prevent recursion
+        availableTools.filter(_ ne this), // Exclude itself to prevent recursion
         port = 0
       )
       val serverPort = toolServer.start().get
@@ -88,7 +88,7 @@ class EvalTool(availableTools: List[ToolBase]) extends Tool[EvalInput, EvalOutpu
           )
         } finally {
           // Clean up temp file
-          // tempFile.delete()
+          tempFile.delete()
         }
       } finally {
         // Stop the tool server

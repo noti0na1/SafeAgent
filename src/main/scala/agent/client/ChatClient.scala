@@ -10,7 +10,7 @@ import com.openai.core.JsonValue
 
 import scala.jdk.CollectionConverters.*
 import scala.jdk.OptionConverters.*
-import scala.util.{Try, Success, Failure}
+import scala.util.Try
 
 /**
  *  Response from a chat completion request.

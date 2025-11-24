@@ -62,7 +62,7 @@ class ReActAgent(
         Failure(new RuntimeException(s"Max iterations (${config.maxIterations}) reached"))
       else
         // Call ChatClient with the current messages
-        chatClient.chat(messages, tools, config.systemPrompt) match
+        chatClient.chat(messages, tools, Option(config.systemPrompt)) match
           case Success(response) =>
             if response.hasToolCalls then
               // Add assistant message with tool calls

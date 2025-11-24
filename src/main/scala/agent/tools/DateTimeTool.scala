@@ -2,7 +2,7 @@ package agent.tools
 
 import agent.core.{Tool, ToolDataType, State}
 import upickle.default.*
-import scala.util.{Try, Success}
+import scala.util.Try
 import java.time.{LocalDateTime, ZoneId}
 import java.time.format.DateTimeFormatter
 

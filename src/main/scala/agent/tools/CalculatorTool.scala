@@ -2,7 +2,7 @@ package agent.tools
 
 import agent.core.{Tool, ToolDataType, State}
 import upickle.default.*
-import scala.util.{Try, Success, Failure}
+import scala.util.Try
 
 /**
  *  Input parameters for calculator operations.
