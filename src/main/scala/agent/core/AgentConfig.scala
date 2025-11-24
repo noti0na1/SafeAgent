@@ -9,6 +9,5 @@ package agent.core
  */
 case class AgentConfig(
   systemPrompt: String = "You are a helpful AI agent that can use tools to assist with user requests.",
-  maxIterations: Int = 10,
-  verbose: Boolean = false
+  maxIterations: Int = 10
 )

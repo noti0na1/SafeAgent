@@ -55,16 +55,16 @@ abstract class Tool[Input: ToolDataType, Output: ToolDataType] extends ToolBase:
   /** Execute the tool with the given typed input */
   final def execute(input: Input)(using state: State): Try[Output] =
     val result = invoke(input)(using state)
-
-    if state.agentConfig.verbose then
+    
+    if state.verbose then
       println(s"[Tool Call] $name")
       println(s"  Arguments: ${write[Input](input)}")
       result match
         case Success(output) =>
-          if state.agentConfig.verbose then
+          if state.verbose then
             println(s"  Result: ${write[Output](output)}")
         case Failure(ex) =>
-          if state.agentConfig.verbose then
+          if state.verbose then
             println(s"  Error: ${ex.getMessage}")
 
     result

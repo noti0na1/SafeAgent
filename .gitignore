@@ -50,3 +50,4 @@ cs
 .enable_bsp_all_projects
 
 local/
+agent_state.json

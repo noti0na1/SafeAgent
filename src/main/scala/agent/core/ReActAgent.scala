@@ -18,12 +18,13 @@ class ReActAgent(
   val config: AgentConfig,
   val tools: List[ToolBase],
   var messages: List[Message],
-  private val chatClient: ChatClient
+  val state: State,
+  private val chatClient: ChatClient,
 ) extends Agent:
 
   type Response = (ReActAgent, ChatResponse)
-  
-  given state: State = new State(config)
+
+  given State = state
 
   /** Create a new instance with updated messages */
   private def withMessages(newMessages: List[Message]): this.type =
@@ -46,7 +47,7 @@ class ReActAgent(
           case Failure(ex) =>
             ToolResult(toolCall.id, toolCall.name, s"Error: ${ex.getMessage}", success = false)
       case None =>
-        if state.agentConfig.verbose then
+        if state.verbose then
           println(s"[Tool Call] ${toolCall.name}")
           println(s"  Arguments: ${toolCall.arguments}")
           println(s"  Error: Tool not found")
@@ -57,7 +58,7 @@ class ReActAgent(
     addMessage(Message.user(userMessage))
 
     @tailrec
-    def loop(iteration: Int): Try[String] =
+    def loop(iteration: Int, fullMsg: StringBuilder): Try[String] =
       if iteration >= config.maxIterations then
         Failure(new RuntimeException(s"Max iterations (${config.maxIterations}) reached"))
       else
@@ -67,6 +68,8 @@ class ReActAgent(
             if response.hasToolCalls then
               // Add assistant message with tool calls
               val assistantMsg = Message.assistantWithTools(response.content, response.toolCalls.get)
+              fullMsg.append(response.content.getOrElse(""))
+              fullMsg.append("\n")
               addMessage(assistantMsg)
 
               // Execute all tool calls
@@ -81,17 +84,18 @@ class ReActAgent(
               addMessages(toolMessages)
 
               // Continue the loop with tool results
-              loop(iteration + 1)
+              loop(iteration + 1, fullMsg)
             else
               // Add final reponse to messages
               val resultMsg = response.content.getOrElse("")
+              fullMsg.append(resultMsg)
               addMessage(Message.assistant(resultMsg))
               
-              Success(resultMsg)
+              Success(fullMsg.toString())
           case Failure(ex) =>
             Failure(ex)
 
-    loop(0)
+    loop(0, new StringBuilder())
 
 object ReActAgent:
   /**
@@ -104,15 +108,17 @@ object ReActAgent:
    *  @param chatClient The ChatClient instance to use
    *  @param tools Available tools (default: empty)
    *  @param messages Initial conversation history (default: empty)
+   *  @param state Optional State instance (default: create new)
    *  @return A new ReActAgent instance
    */
   def withClient(
     agentConfig: AgentConfig,
     chatClient: ChatClient,
     tools: List[ToolBase] = List.empty,
-    messages: List[Message] = List.empty
+    messages: List[Message] = List.empty,
+    state: State = new State()
   ): ReActAgent =
-    new ReActAgent(agentConfig, tools, messages, chatClient)
+    new ReActAgent(agentConfig, tools, messages, state, chatClient)
 
   /**
    *  Create a new ReActAgent with a default ChatClient.
@@ -124,13 +130,15 @@ object ReActAgent:
    *  @param agentConfig Configuration for agent behavior
    *  @param tools Available tools (default: empty)
    *  @param messages Initial conversation history (default: empty)
+   *  @param state Optional State instance (default: create new)
    *  @return A new ReActAgent instance
    */
   def apply(
     modelConfig: ModelConfig,
     agentConfig: AgentConfig,
     tools: List[ToolBase] = List.empty,
-    messages: List[Message] = List.empty
+    messages: List[Message] = List.empty,
+    state: State = new State()
   ): ReActAgent =
     val chatClient = ChatClient(modelConfig)
-    new ReActAgent(agentConfig, tools, messages, chatClient)
+    new ReActAgent(agentConfig, tools, messages, state, chatClient)

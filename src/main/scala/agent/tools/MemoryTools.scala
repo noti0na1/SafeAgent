@@ -7,7 +7,7 @@ import scala.collection.mutable
 
 // Shared memory key for all memory tools
 object MemoryTools:
-  val memoryKey = State.Key[mutable.Map[String, String]]("agent_memory", Some(mutable.Map.empty))
+  val memoryKey = State.PersistantKey[mutable.Map[String, String]]("agent_memory", () => mutable.Map.empty)
 
   def allTools: List[ToolBase] =
     List(
@@ -15,6 +15,9 @@ object MemoryTools:
       new RetrieveMemoryTool(),
       new ListMemoryTool()
     )
+
+  def getMemory(using state: State): mutable.Map[String, String] =
+    state.get(memoryKey)
 
 // ============================================================================
 // Store Memory Tool
@@ -45,7 +48,7 @@ class StoreMemoryTool extends Tool[StoreMemoryInput, Unit]:
 
   override def invoke(input: StoreMemoryInput)(using state: State): Try[Unit] =
     Try {
-      val memory = state.getOrElseUpdate(MemoryTools.memoryKey, mutable.Map.empty[String, String])
+      val memory = MemoryTools.getMemory
       memory(input.key) = input.value
     }
 
@@ -86,7 +89,7 @@ class RetrieveMemoryTool extends Tool[RetrieveMemoryInput, RetrieveMemoryOutput]
 
   override def invoke(input: RetrieveMemoryInput)(using state: State): Try[RetrieveMemoryOutput] =
     Try {
-      val memory = state.getOrElseUpdate(MemoryTools.memoryKey, mutable.Map.empty[String, String])
+      val memory = MemoryTools.getMemory
 
       memory.get(input.key) match
         case Some(value) =>
@@ -129,7 +132,7 @@ class ListMemoryTool extends Tool[Unit, ListMemoryOutput]:
 
   override def invoke(input: Unit)(using state: State): Try[ListMemoryOutput] =
     Try {
-      val memory = state.getOrElseUpdate(MemoryTools.memoryKey, mutable.Map.empty[String, String])
+      val memory = MemoryTools.getMemory
       val keys = memory.keys.toList.sorted
 
       ListMemoryOutput(

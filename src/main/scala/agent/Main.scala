@@ -24,6 +24,7 @@ def printHelp(): Unit =
   println()
 
   val modelConfig = ModelConfig.fromEnv()
+  val stateFilePath = "agent_state.json"
 
   var agentConfig = AgentConfig(
     systemPrompt =
@@ -79,8 +80,7 @@ def printHelp(): Unit =
         |
         |Your goal is to provide accurate, tool-assisted responses that leverage these capabilities to their fullest extent.
         |Build up a rich memory over time to provide increasingly personalized and context-aware assistance.""".stripMargin,
-    maxIterations = 10,
-    verbose = false
+    maxIterations = 10
   )
 
   val tools: List[ToolBase] =
@@ -95,13 +95,35 @@ def printHelp(): Unit =
 
   println(s"Initialized with model: ${modelConfig.model}")
   println(s"Available tools: ${tools.map(_.name).mkString(", ")}")
-  tools.foreach(
-    tool => println(tool.toRawFunction)
-  )
+  // tools.foreach(
+  //   tool => println(tool.toRawFunction)
+  // )
   println()
 
-  // Create initial agent
-  var agent: Agent = ReActAgent(modelConfig, agentConfig, tools)
+  // Create state and load persistent data from file
+  val state = new State()
+
+  // Get all persistent keys from tools (like MemoryTools.memoryKey)
+  val persistentKeys = List(MemoryTools.memoryKey)
+
+  state.loadFromFile(stateFilePath, persistentKeys) match
+    case Success(_) =>
+      println(s"Loaded persistent state from $stateFilePath")
+    case Failure(ex) =>
+      System.err.println(s"Warning: Could not load state from $stateFilePath: ${ex.getMessage}")
+
+  // Create initial agent with the state
+  var agent: ReActAgent = ReActAgent(modelConfig, agentConfig, tools, state = state)
+
+  // Add shutdown hook to save state when exiting
+  sys.addShutdownHook {
+    state.saveToFile(stateFilePath) match
+      case Success(_) =>
+        println(s"\nSaved persistent state to $stateFilePath")
+      case Failure(ex) =>
+        System.err.println(s"\nWarning: Could not save state to $stateFilePath: ${ex.getMessage}")
+  }
+
   // REPL loop
   Iterator.continually(scala.io.StdIn.readLine("> "))
     .takeWhile(_ != null)
@@ -114,19 +136,18 @@ def printHelp(): Unit =
 
         case ":tools" =>
           println("\nAvailable Tools:")
-          tools.foreach { tool =>
-            print(tool.getFullDescription)
-          }
+          // tools.foreach { tool =>
+          //   print(tool.getFullDescription)
+          // }
           println()
 
         case ":clear" =>
-          agent = ReActAgent(modelConfig, agentConfig, tools)
+          agent = ReActAgent(modelConfig, agentConfig, tools, state = agent.state)
           println("Conversation history cleared.")
 
         case ":verbose" =>
-          agentConfig = agentConfig.copy(verbose = !agentConfig.verbose)
-          agent = ReActAgent(modelConfig, agentConfig, tools)
-          println(s"Verbose mode ${if agentConfig.verbose then "enabled" else "disabled"}.")
+          agent.state.verbose = !agent.state.verbose
+          println(s"Verbose mode ${if agent.state.verbose then "enabled" else "disabled"}.")
 
         case ":messages" =>
           val msgs = agent.messages
@@ -145,18 +166,16 @@ def printHelp(): Unit =
         case ":help" =>
           printHelp()
 
-        case input if input.nonEmpty =>
-          try
-            agent.run(input) match
-              case Success(response) =>
-                println(s"\n$response\n")
+        case input if input.startsWith(":") =>
+          println(s"Unknown command: $input")
 
-              case Failure(ex) =>
-                System.err.println(s"\nError: ${ex.getMessage}\n")
-                ex.printStackTrace()
-          catch
-            case ex: Exception =>
-              System.err.println(s"\nUnexpected error: ${ex.getMessage}\n")
+        case input if input.nonEmpty =>
+          agent.run(input) match
+            case Success(response) =>
+              println(s"\n$response\n")
+
+            case Failure(ex) =>
+              System.err.println(s"\nError: ${ex.getMessage}\n")
               ex.printStackTrace()
 
         case _ => // Empty line, do nothing

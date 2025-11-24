@@ -129,7 +129,7 @@ class ToolServer(tools: List[ToolBase], port: Int = 0)(using state: State):
 
       tools.find(_.name == request.toolName) match {
         case Some(tool) =>
-          if state.agentConfig.verbose then
+          if state.verbose then
             println(s"[Tool Server] Executing tool '${request.toolName}'")
             println(s"  Arguments: ${request.arguments}")
             
@@ -140,14 +140,14 @@ class ToolServer(tools: List[ToolBase], port: Int = 0)(using state: State):
               ToolResponse("", success = false, error = Some(ex.getMessage))
           }
         case None =>
-          if state.agentConfig.verbose then
+          if state.verbose then
             println(s"[Tool Server] Tool '${request.toolName}' not found")
             println(s"  Arguments: ${request.arguments}")
           ToolResponse("", success = false, error = Some(s"Tool '${request.toolName}' not found"))
       }
     } catch {
       case ex: Exception =>
-        if state.agentConfig.verbose then
+        if state.verbose then
           println(s"[Tool Server] Invalid request - ${ex.getMessage}")
         ToolResponse("", success = false, error = Some(s"Invalid request: ${ex.getMessage}"))
     }
