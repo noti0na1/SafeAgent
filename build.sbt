@@ -20,3 +20,6 @@ scalacOptions ++= Seq(
 )
 
 testFrameworks += new TestFramework("utest.runner.Framework")
+
+Compile / scalaSource := baseDirectory.value / "src" / "main" / "scala"
+Test / scalaSource := baseDirectory.value / "src" / "test" / "scala"

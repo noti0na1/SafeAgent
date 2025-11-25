@@ -44,10 +44,24 @@ sbt run
 
 ```
 > What is 15 * 24 + 100?
-Result: 460
+**15 * 24 + 100 = 460**
 
-> Store "meeting" with value "3pm tomorrow"
-I've stored that information.
+Here's the breakdown:
+- 15 × 24 = 360
+- 360 + 100 = 460
+
+> Remember I have a meeting at 3 PM tomorrow.
+Done! I've stored that you have a meeting at 3 PM tomorrow. I'll remember this for future reference. If you need any reminders or want to add more details about the meeting, just let me know!
+
+> How is the weather of where I live?
+Let me check my memory to see if you've told me your location before.
+I see there's a "user_location" key in my memory! Let me retrieve that:
+Great! Now let me get the weather for Lausanne:
+Perfect! Here's the weather in Lausanne:
+- **Temperature:** 72°F (approximately 22°C)
+- **Condition:** Sunny
+
+Looks like nice weather today! 😊
 ```
 
 **REPL Commands**: `:help`, `:tools`, `:messages`, `:clear`, `:verbose`, `:exit`
@@ -70,7 +84,7 @@ I've stored that information.
 | `datetime` | Current date/time |
 | `search` | Web search (mock) |
 | `store_memory` / `retrieve_memory` / `list_memory` | Persistent memory storage |
-| `eval` | Execute Scala code in a separate process with full tool access |
+| `eval` / `get_tool_library` | Execute Scala code in a separate process with full tool access |
 
 ## Creating Custom Tools
 
@@ -142,20 +156,20 @@ When the agent invokes `eval`:
 4. Only the final output returns to the model, keeping intermediate results out of context
 
 ```scala
-// Auto-generated typed wrappers (via get_tool_library):
+// Auto-generated typed tool wrappers (via get_tool_library):
 case class CalculatorInput(operation: String, a: Double, b: Double) derives ReadWriter
 case class CalculatorOutput(result: Double) derives ReadWriter
 
-def calculator(operation: String, a: Double, b: Double): CalculatorOutput = {
-  val input = CalculatorInput(operation, a, b)
-  val result = callTool("calculator", write(input))
-  read[CalculatorOutput](result)
-}
+def calculator(operation: String, a: Double, b: Double): CalculatorOutput
 
-// LLM-generated code using typed wrappers:
-val sum = calculator(operation = "add", a = 10, b = 20)
-val product = calculator(operation = "multiply", a = sum.result, b = 2)
-println(s"Final result: ${product.result}")  // 60.0
+// LLM-generated code using typed tools:
+// Calculate the sum from 5 to 200 using the calculator tool
+var sum: Double = 0
+for (i <- 5 to 200) {  
+  val result = calculator(operation = "add", a = sum, b = i.toDouble)
+  sum = result.result
+}
+println(s"The sum from 5 to 200 is: $sum")
 ```
 
 #### Benefits
@@ -187,4 +201,4 @@ sbt run        # Start REPL
 
 ## Acknowledgments
 
-Inspired by the ReAct pattern ([Yao et al., 2023](https://arxiv.org/abs/2210.03629)).
+Inspired by the ReAct pattern ([Yao et al., 2023](https://arxiv.org/abs/2210.03629)) and langchain/langgraph.
