@@ -113,22 +113,65 @@ val agent = ReActAgent(modelConfig, agentConfig, tools)
 
 ## Advanced Features
 
-### State Persistence**
+### Code Evaluation with Type-Safe Programmatic Tool Calling
 
-Automatic save/load to `agent_state.json` maintains context across sessions. 
+The `eval` tool implements **programmatic tool calling** - a pattern where the LLM writes code to orchestrate tools rather than making individual JSON-based tool calls. This approach, [mentioned by Anthropic](https://www.anthropic.com/engineering/advanced-tool-use), offers significant advantages over traditional tool use.
+
+#### The Problem with Traditional Tool Calling
+
+Standard LLM tool use has two critical issues:
+
+1. **Context Pollution**: Each tool call's intermediate results accumulate in the conversation context, consuming tokens whether useful or not
+2. **Inference Overhead**: Every tool invocation requires a full model inference pass, making multi-step workflows slow and error-prone
+
+#### SafeAgent's Solution: Code-Based Orchestration with Type Safety
+
+Instead of JSON tool requests, the LLM writes Scala code that orchestrates multiple tools. SafeAgent enhances this pattern with **compile-time type safety** through the `eval` tool:
+
+- **Isolated Execution**: Code runs in a separate `scala-cli` process for safety and stability
+- **Type-Safe Tool Access**: Auto-generated case classes and wrapper functions for each tool
+- **Tool Discovery**: The `get_tool_library` tool returns all typed function signatures
+- **Tool Server**: A lightweight HTTP server ([ToolServer.scala](src/main/scala/agent/tools/ToolServer.scala)) bridges the eval process back to the agent's tools
+
+#### How It Works
+
+When the agent invokes `eval`:
+1. A `ToolServer` starts to handle tool requests from the eval process
+2. The generated tool library (typed case classes + wrapper functions) is injected into the eval environment
+3. LLM-generated code calls typed functions, which internally use `callTool(toolName, argsJson)` to communicate with the main agent
+4. Only the final output returns to the model, keeping intermediate results out of context
+
+```scala
+// Auto-generated typed wrappers (via get_tool_library):
+case class CalculatorInput(operation: String, a: Double, b: Double) derives ReadWriter
+case class CalculatorOutput(result: Double) derives ReadWriter
+
+def calculator(operation: String, a: Double, b: Double): CalculatorOutput = {
+  val input = CalculatorInput(operation, a, b)
+  val result = callTool("calculator", write(input))
+  read[CalculatorOutput](result)
+}
+
+// LLM-generated code using typed wrappers:
+val sum = calculator(operation = "add", a = 10, b = 20)
+val product = calculator(operation = "multiply", a = sum.result, b = 2)
+println(s"Final result: ${product.result}")  // 60.0
+```
+
+#### Benefits
+
+| Aspect | Traditional Tool Calling | SafeAgent's Approach |
+|--------|-------------------------|---------------------|
+| Type Safety | Runtime JSON parsing | Compile-time verification |
+| Multi-step Logic | Multiple inference passes | Single code generation |
+| Context Usage | Accumulates all results | Only final output returned |
+| Error Detection | Runtime failures | Compilation errors |
+| Complex Logic | Natural language reasoning | Native loops, conditionals |
+
+### State Persistence
+
+Automatic save/load to `agent_state.json` maintains context across sessions.
 For example, storing memory of important information in one session allows retrieval in the next.
-
-### Code Evaluation Tool
-
-The `eval` tool enables dynamic execution of Scala code with full access to the agent's tool ecosystem. This allows the agent to handle complex logic that would be difficult to express through standard tool compositions.
-
-**Key Features**:
-- **Isolated Execution**: Code runs in a separate process for safety and stability
-- **Tool Access**: Evaluated code can invoke any agent tool through a local network API
-- **Complex Logic**: Handle multi-step computations, data transformations, and control flow
-- **Bidirectional Communication**: The evaluation server communicates with the main agent process via HTTP
-
-**How It Works**: When the agent invokes `eval`, a `ToolServer` is started by the agent. The evaluated code can call `callTool(toolName, argsJson)` to execute tools, which sends requests back to the main agent. This architecture ensures that complex operations remain type-safe while maintaining process isolation.
 
 ## Development
 

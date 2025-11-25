@@ -2,8 +2,46 @@ package agent.tools
 
 import agent.core.{Tool, ToolDataType, ToolBase, State}
 import upickle.default.*
-import scala.util.{Try, Success}
+import scala.util.{Try, Success, Using}
 import scala.sys.process.*
+import java.io.{File, PrintWriter}
+
+
+object EvalTool:
+  /** Generate the complete tool library with type-safe wrappers */
+  def generateToolLibrary(tools: List[ToolBase]): String =
+    val builder = new StringBuilder() 
+    builder.append("import upickle.default.*\n\n")
+    // Generate wrappers for each tool
+    tools.foreach { tool =>
+      builder.append(s"// --- ${tool.name} ---\n")
+      builder.append(tool.generateScalaWrapper)
+      builder.append("\n")
+    }
+    builder.toString()
+
+  def isEvalRelatedTool(tool: ToolBase): Boolean = 
+    tool.isInstanceOf[EvalTool] || tool.isInstanceOf[GetToolLibraryTool]
+
+case class GetToolLibraryOutput(
+  library: String
+) derives ToolDataType
+
+/**
+ *  Tool for getting the generated tool library code.
+ *  Helps LLM understand what functions are available when writing Scala snippets for eval.
+ */
+class GetToolLibraryTool(availableTools: List[ToolBase]) extends Tool[Unit, GetToolLibraryOutput]:
+  override val name: String = "get_tool_library"
+
+  override val description: String =
+    """Returns the generated Scala code for the tool library.
+      |Use this to see what wrapper functions and types are available
+      |when writing Scala 3 code snippets for the eval tool.""".stripMargin
+
+  override def invoke(input: Unit)(using state: State): Try[GetToolLibraryOutput] =
+    val tools = availableTools.filter(!EvalTool.isEvalRelatedTool(_))
+    Try(GetToolLibraryOutput(EvalTool.generateToolLibrary(tools)))
 
 /**
  *  Input parameters for Scala code evaluation.
@@ -22,7 +60,7 @@ case class EvalInput(
  */
 case class EvalOutput(
   output: String,
-  success: Boolean
+  exitCode: Int
 ) derives ToolDataType
 
 /**
@@ -38,66 +76,54 @@ class EvalTool(availableTools: List[ToolBase]) extends Tool[EvalInput, EvalOutpu
   override val description: String =
     """Evaluates Scala 3 code snippets. Can execute Scala expressions, definitions, and function calls.
       |The final result need to be printed to the console to be captured as output.
-      |The REPL environment includes a callTool(toolName: String, arguments: String) function
-      |that allows calling other agent tools. Example: callTool("calculator", "{\"operation\":\"add\",\"a\":5,\"b\":3}")""".stripMargin
+      |
+      |Use "get_tool_library" tool first to see the available tool functions and their signatures.
+      |Example: val result = calculator(operation = "add", a = 5.0, b = 3.0)
+      |         println(result.result)  // prints result""".stripMargin
+
+  /** Resource wrapper for temp files that auto-delete */
+  private class TempFile(prefix: String, suffix: String) extends AutoCloseable:
+    val file: File = File.createTempFile(prefix, suffix)
+    def write(content: String): Unit = Using.resource(new PrintWriter(file))(_.write(content))
+    def absolutePath: String = file.getAbsolutePath
+    override def close(): Unit = file.delete()
 
   override def invoke(input: EvalInput)(using state: State): Try[EvalOutput] =
-    Try {
-      // Start the tool server
-      val toolServer = new ToolServer(
-        availableTools.filter(_ ne this), // Exclude itself to prevent recursion
-        port = 0
-      )
-      val serverPort = toolServer.start().get
+    val tools = availableTools.filter(!EvalTool.isEvalRelatedTool(_))
+    val wrapperLibrary = EvalTool.generateToolLibrary(tools)
 
-      try {
-        // Create a temporary file with the code to evaluate
-        val tempFile = java.io.File.createTempFile("scala-eval-", ".sc")
-        // For debug, save the file to the current directory
-        // val tempFile = java.io.File.createTempFile("scala-eval-", ".sc", new java.io.File("."))
-        try {
-          // Write user code to the temp file
-          val writer = new java.io.PrintWriter(tempFile)
-          try {
-            writer.write(input.code)
-          } finally {
-            writer.close()
-          }
+    val port = sys.env.getOrElse("TOOL_SERVER_PORT", "8080").toInt
 
-          // Execute scala with the library file and the user code
-          val processBuilder = Process(
-            Seq("scala", "library/ToolClient.scala", tempFile.getAbsolutePath),
-            None,
-            "TOOL_SERVER_PORT" -> serverPort.toString
-          )
-          val outputBuffer = new StringBuilder
-          val errorBuffer = new StringBuilder
-
-          val processLogger = ProcessLogger(
-            out => outputBuffer.append(out).append("\n"),
-            err => errorBuffer.append(err).append("\n")
-          )
-
-          val exitCode = processBuilder.!(processLogger)
-
-          val output = if outputBuffer.nonEmpty then outputBuffer.toString.trim else errorBuffer.toString.trim
-
-          EvalOutput(
-            output = if output.isEmpty then "(no output)" else output,
-            success = exitCode == 0
-          )
-        } finally {
-          // Clean up temp file
-          tempFile.delete()
-        }
-      } finally {
-        // Stop the tool server
-        toolServer.stop()
-      }
-    }.recoverWith { case ex: Throwable =>
-      Success(EvalOutput(
-        output = s"Error executing Scala code: ${ex.getMessage}",
-        success = false
-      ))
+    Using.Manager { use =>
+      val server = use(new ToolServer(tools, port))
+      val libraryFile = use(new TempFile("tool-library-", ".scala"))
+      val codeFile = use(new TempFile("scala-eval-", ".sc"))
+    
+      libraryFile.write(wrapperLibrary)
+      codeFile.write(input.code)
+      server.start()
+      executeScala(port, libraryFile.absolutePath, codeFile.absolutePath)
     }
+
+  private def executeScala(serverPort: Int, libraryPath: String, codePath: String): EvalOutput =
+    val outputBuffer = new StringBuilder
+    val errorBuffer = new StringBuilder
+
+    val processLogger = ProcessLogger(
+      out => outputBuffer.append(out).append("\n"),
+      err => errorBuffer.append(err).append("\n")
+    )
+
+    val exitCode = Process(
+      Seq("scala", "library/ToolCallClient.scala", libraryPath, codePath),
+      None,
+      "TOOL_SERVER_PORT" -> serverPort.toString
+    ).!(processLogger)
+
+    val output = if outputBuffer.nonEmpty then outputBuffer.toString.trim else errorBuffer.toString.trim
+
+    EvalOutput(
+      output = if output.isEmpty then "(no output)" else output,
+      exitCode = exitCode
+    )
 

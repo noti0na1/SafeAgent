@@ -32,12 +32,12 @@ case class ToolResponse(
 ) derives ReadWriter
 
 /**
- * HTTP server that exposes agent tools for inter-process communication.
+ *  HTTP server that exposes agent tools for inter-process communication.
  *
- * This server allows code running in external processes (like the scala-repl
- * in EvalTool) to call back into the agent's available tools.
+ *  This server allows code running in external processes (like the scala-repl
+ *  in EvalTool) to call back into the agent's available tools.
  */
-class ToolServer(tools: List[ToolBase], port: Int = 0)(using state: State):
+class ToolServer(tools: List[ToolBase], port: Int = 8080)(using state: State) extends AutoCloseable:
   private var serverSocket: Option[ServerSocket] = None
   private var serverThread: Option[Thread] = None
   private val shutdownPromise = Promise[Unit]()
@@ -46,35 +46,29 @@ class ToolServer(tools: List[ToolBase], port: Int = 0)(using state: State):
   def getPort: Option[Int] = serverSocket.map(_.getLocalPort)
 
   /** Start the server in a background thread */
-  def start(): Try[Int] =
-    Try {
-      val socket = new ServerSocket(port)
-      serverSocket = Some(socket)
-      val actualPort = socket.getLocalPort
-
-      val thread = new Thread(() => {
-        try {
-          while (!socket.isClosed && !Thread.currentThread().isInterrupted) {
-            try {
-              val clientSocket = socket.accept()
-              handleClient(clientSocket)
-            } catch {
-              case _: java.net.SocketException if socket.isClosed =>
-                // Server was closed, exit gracefully
-              case ex: Exception =>
-                System.err.println(s"Error handling client: ${ex.getMessage}")
-            }
+  def start(): Unit =
+    val socket = new ServerSocket(port)
+    serverSocket = Some(socket)
+    val thread = new Thread(() => {
+      try {
+        while (!socket.isClosed && !Thread.currentThread().isInterrupted) {
+          try {
+            val clientSocket = socket.accept()
+            handleClient(clientSocket)
+          } catch {
+            case _: java.net.SocketException if socket.isClosed =>
+              // Server was closed, exit gracefully
+            case ex: Exception =>
+              System.err.println(s"Error handling client: ${ex.getMessage}")
           }
-        } finally {
-          shutdownPromise.success(())
         }
-      })
-      thread.setDaemon(true)
-      thread.start()
-      serverThread = Some(thread)
-
-      actualPort
-    }
+      } finally {
+        shutdownPromise.success(())
+      }
+    })
+    thread.setDaemon(true)
+    thread.start()
+    serverThread = Some(thread)
 
   /** Handle a client connection */
   private def handleClient(clientSocket: Socket): Unit =
@@ -153,16 +147,11 @@ class ToolServer(tools: List[ToolBase], port: Int = 0)(using state: State):
     }
 
   /** Stop the server */
-  def stop(): Unit =
+  override def close(): Unit = 
     serverSocket.foreach { socket =>
       socket.close()
     }
     serverThread.foreach { thread =>
       thread.interrupt()
     }
-
-  /** Wait for the server to shutdown */
-  def awaitShutdown(): Unit =
-    import scala.concurrent.Await
-    import scala.concurrent.duration.*
-    Await.result(shutdownPromise.future, Duration.Inf)
+  

@@ -90,7 +90,7 @@ def printHelp(): Unit =
       new DateTimeTool(),
       new SearchTool()
     ) ++ MemoryTools.allTools
-    baseTools :+ new EvalTool(baseTools)
+    baseTools :+ new GetToolLibraryTool(baseTools) :+ new EvalTool(baseTools)
 
 
   println(s"Initialized with model: ${modelConfig.model}")
@@ -136,9 +136,9 @@ def printHelp(): Unit =
 
         case ":tools" =>
           println("\nAvailable Tools:")
-          // tools.foreach { tool =>
-          //   print(tool.getFullDescription)
-          // }
+          tools.foreach { tool =>
+            print(tool.getFullDescription)
+          }
           println()
 
         case ":clear" =>

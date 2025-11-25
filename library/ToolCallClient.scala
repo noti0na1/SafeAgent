@@ -2,6 +2,7 @@
 //> using dep "com.lihaoyi::upickle:4.4.1"
 //> using dep "com.lihaoyi::requests:0.9.0"
 
+// low-level tool calling function
 def callTool(toolName: String, arguments: String): String = {
   val port = sys.env.getOrElse("TOOL_SERVER_PORT", "8080").toInt
   val url = s"http://localhost:$port/"
