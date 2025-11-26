@@ -76,14 +76,18 @@ case class EvalOutput(
  *  @param availableTools List of tools available for the eval environment
  *  @param timeout Maximum execution time (default: 60 seconds)
  */
-class EvalTool(availableTools: List[ToolBase], timeout: Duration = 2.minutes) extends Tool[EvalInput, EvalOutput]:
+class EvalTool(
+  availableTools: List[ToolBase], 
+  timeout: Duration = 2.minutes,
+  showLibraryTool: Boolean = true,
+) extends Tool[EvalInput, EvalOutput]:
   override val name: String = "eval"
 
   override val description: String =
-    """Evaluates Scala 3 code snippets. Can execute Scala expressions, definitions, and function calls.
+    s"""Evaluates Scala 3 code snippets. Can execute Scala expressions, definitions, and function calls.
       |The final result need to be printed to the console to be captured as output.
+      |${if showLibraryTool then "Use \"get_tool_library\" tool first to see the available tool functions and their signatures." else ""}
       |
-      |Use "get_tool_library" tool first to see the available tool functions and their signatures.
       |Example: val result = calculator(operation = "add", a = 5.0, b = 3.0)
       |         println(result.result)  // prints result""".stripMargin
 

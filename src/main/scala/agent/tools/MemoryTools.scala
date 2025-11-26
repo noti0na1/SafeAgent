@@ -1,6 +1,9 @@
 package agent.tools
 
 import agent.core.{Tool, ToolBase, ToolDataType, State}
+import agent.core.ToolDataType.toolDataTypeToJsonSchema
+import agent.core.ToolDataType.toolDataTypeToReadWriter
+
 import upickle.default.*
 import scala.util.Try
 import scala.collection.mutable
@@ -13,7 +16,8 @@ object MemoryTools:
     List(
       new StoreMemoryTool(),
       new RetrieveMemoryTool(),
-      new ListMemoryTool()
+      new QueryMemoryTool(),
+      new ListMemoryTool(),
     )
 
   def getMemory(using state: State): mutable.Map[String, String] =
@@ -138,5 +142,94 @@ class ListMemoryTool extends Tool[Unit, ListMemoryOutput]:
       ListMemoryOutput(
         keys = keys,
         count = keys.size
+      )
+    }
+
+// ============================================================================
+// Query Memory Tool
+// ============================================================================
+
+/**
+ *  Input for querying memory.
+ *
+ *  @param pattern The search pattern (string or regex)
+ *  @param isRegex Whether to treat the pattern as a regex (default: false)
+ *  @param searchKeys Whether to search in keys (default: true)
+ *  @param searchValues Whether to search in values (default: true)
+ */
+case class QueryMemoryInput(
+  pattern: String,
+  isRegex: Boolean = false,
+  searchKeys: Boolean = true,
+  searchValues: Boolean = true
+) derives ToolDataType
+
+/**
+ *  A single match from the query.
+ *
+ *  @param key The key where the match was found
+ *  @param value The value associated with the key
+ *  @param matchedIn Where the match was found ("key", "value", or "both")
+ */
+case class QueryMemoryMatch(
+  key: String,
+  value: String,
+  matchedIn: String
+) derives ToolDataType
+
+/**
+ *  Output from querying memory.
+ *
+ *  @param matches List of matching entries
+ *  @param count Number of matches found
+ *  @param pattern The pattern that was searched
+ */
+case class QueryMemoryOutput(
+  matches: List[QueryMemoryMatch],
+  count: Int,
+  pattern: String
+) derives ToolDataType
+
+/**
+ *  Tool for searching memory by string or regex pattern.
+ *
+ *  This allows the agent to find stored information by searching
+ *  through keys and/or values using plain text or regex patterns.
+ */
+class QueryMemoryTool extends Tool[QueryMemoryInput, QueryMemoryOutput]:
+  override val name: String = "query_memory"
+
+  override val description: String =
+    "Search memory for entries matching a pattern. Supports plain text search or regex. Can search in keys, values, or both."
+
+  override def invoke(input: QueryMemoryInput)(using state: State): Try[QueryMemoryOutput] =
+    Try {
+      val memory = MemoryTools.getMemory
+
+      val matcher: String => Boolean = if input.isRegex then
+        val regex = input.pattern.r
+        (s: String) => regex.findFirstIn(s).isDefined
+      else
+        (s: String) => s.contains(input.pattern)
+
+      val matches = memory.toList.flatMap { case (key, value) =>
+        val keyMatches = input.searchKeys && matcher(key)
+        val valueMatches = input.searchValues && matcher(value)
+
+        if keyMatches || valueMatches then
+          val matchedIn = (keyMatches, valueMatches) match
+            case (true, true) => "both"
+            case (true, false) => "key"
+            case (false, true) => "value"
+            case _ => "none"
+          Some(QueryMemoryMatch(key, value, matchedIn))
+        else
+          None
+      }.sortBy(_.key)
+
+      QueryMemoryOutput(
+        matches = matches,
+        count = matches.size,
+        pattern = input.pattern
       )
     }
