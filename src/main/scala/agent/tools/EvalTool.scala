@@ -2,8 +2,11 @@ package agent.tools
 
 import agent.core.{Tool, ToolDataType, ToolBase, State}
 import upickle.default.*
-import scala.util.{Try, Success, Using}
+import scala.util.{Try, Success, Failure, Using}
 import scala.sys.process.*
+import scala.concurrent.{Future, Await, TimeoutException}
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration.*
 import java.io.{File, PrintWriter}
 
 
@@ -69,8 +72,11 @@ case class EvalOutput(
  *  This tool runs Scala code in an isolated REPL environment and returns the result.
  *  The code can include expressions, definitions, and even call other available tools
  *  via the `callTool` function that is automatically injected into the REPL environment.
+ *
+ *  @param availableTools List of tools available for the eval environment
+ *  @param timeout Maximum execution time (default: 60 seconds)
  */
-class EvalTool(availableTools: List[ToolBase]) extends Tool[EvalInput, EvalOutput]:
+class EvalTool(availableTools: List[ToolBase], timeout: Duration = 2.minutes) extends Tool[EvalInput, EvalOutput]:
   override val name: String = "eval"
 
   override val description: String =
@@ -114,11 +120,22 @@ class EvalTool(availableTools: List[ToolBase]) extends Tool[EvalInput, EvalOutpu
       err => errorBuffer.append(err).append("\n")
     )
 
-    val exitCode = Process(
+    val process = Process(
       Seq("scala", "library/ToolCallClient.scala", libraryPath, codePath),
       None,
       "TOOL_SERVER_PORT" -> serverPort.toString
-    ).!(processLogger)
+    ).run(processLogger)
+
+    // Run with timeout
+    val exitCodeFuture = Future(process.exitValue())
+
+    val exitCode = try
+      Await.result(exitCodeFuture, timeout)
+    catch
+      case _: TimeoutException =>
+        process.destroy()
+        errorBuffer.append(s"\nProcess timed out after ${timeout.toSeconds} seconds")
+        -1
 
     val output = if outputBuffer.nonEmpty then outputBuffer.toString.trim else errorBuffer.toString.trim
 

@@ -11,7 +11,7 @@ import scala.collection.immutable.{Map => ImmutableMap}
 object State:
   class Key[V](val name: String, val default: () => V):
     val persistent: Boolean = false
-  class PersistantKey[V: ReadWriter](name: String, default: () => V) extends Key[V](name, default):
+  class PersistentKey[V: ReadWriter](name: String, default: () => V) extends Key[V](name, default):
     override val persistent: Boolean = true
     def getRW: ReadWriter[V] = summon[ReadWriter[V]]
   
@@ -47,7 +47,7 @@ class State:
   def saveToFile(filePath: String): Try[Unit] = Try:
     val persistentData: PersistedData = storage
       .filter { case (key, _) => key.persistent }
-      .map { case (key: State.PersistantKey[t], value) =>
+      .map { case (key: State.PersistentKey[t], value) =>
         // Serialize each value as JSON string
         key.name -> write(value.asInstanceOf[t])(using key.getRW)
       }
@@ -80,13 +80,13 @@ class State:
       val persistentData = read[PersistedData](jsonString)
 
       // Create a map of key names to keys for quick lookup
-      val keysByName: ImmutableMap[String, State.PersistantKey[?]] =
+      val keysByName: ImmutableMap[String, State.PersistentKey[?]] =
         keys.filter(_.persistent).map {
-          case k: State.PersistantKey[?] => k.name -> k
+          case k: State.PersistentKey[?] => k.name -> k
         }.toMap
 
       persistentData.foreach { case (keyName, jsonValue) =>
-        keysByName.get(keyName).foreach { case key: State.PersistantKey[t] =>
+        keysByName.get(keyName).foreach { case key: State.PersistentKey[t] =>
           try {
             // Deserialize the value from JSON
             val value = read[t](jsonValue)(using key.getRW)

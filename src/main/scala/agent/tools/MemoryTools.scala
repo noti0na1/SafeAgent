@@ -7,7 +7,7 @@ import scala.collection.mutable
 
 // Shared memory key for all memory tools
 object MemoryTools:
-  val memoryKey = State.PersistantKey[mutable.Map[String, String]]("agent_memory", () => mutable.Map.empty)
+  val memoryKey = State.PersistentKey[mutable.Map[String, String]]("agent_memory", () => mutable.Map.empty)
 
   def allTools: List[ToolBase] =
     List(

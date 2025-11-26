@@ -40,7 +40,6 @@ case class ToolResponse(
 class ToolServer(tools: List[ToolBase], port: Int = 8080)(using state: State) extends AutoCloseable:
   private var serverSocket: Option[ServerSocket] = None
   private var serverThread: Option[Thread] = None
-  private val shutdownPromise = Promise[Unit]()
 
   /** Get the actual port the server is listening on */
   def getPort: Option[Int] = serverSocket.map(_.getLocalPort)
@@ -50,20 +49,16 @@ class ToolServer(tools: List[ToolBase], port: Int = 8080)(using state: State) ex
     val socket = new ServerSocket(port)
     serverSocket = Some(socket)
     val thread = new Thread(() => {
-      try {
-        while (!socket.isClosed && !Thread.currentThread().isInterrupted) {
-          try {
-            val clientSocket = socket.accept()
-            handleClient(clientSocket)
-          } catch {
-            case _: java.net.SocketException if socket.isClosed =>
-              // Server was closed, exit gracefully
-            case ex: Exception =>
-              System.err.println(s"Error handling client: ${ex.getMessage}")
-          }
+      while (!socket.isClosed && !Thread.currentThread().isInterrupted) {
+        try {
+          val clientSocket = socket.accept()
+          handleClient(clientSocket)
+        } catch {
+          case _: java.net.SocketException if socket.isClosed =>
+            // Server was closed, exit gracefully
+          case ex: Exception =>
+            System.err.println(s"Error handling client: ${ex.getMessage}")
         }
-      } finally {
-        shutdownPromise.success(())
       }
     })
     thread.setDaemon(true)

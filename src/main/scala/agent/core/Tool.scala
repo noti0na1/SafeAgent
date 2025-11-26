@@ -2,7 +2,6 @@ package agent.core
 
 import upickle.default.*
 import scala.util.{Try, Success, Failure}
-import scala.reflect.ClassTag
 
 /** Base trait for all tools (type-erased interface) */
 trait ToolBase:
@@ -64,11 +63,9 @@ abstract class Tool[Input: ToolDataType, Output: ToolDataType] extends ToolBase:
       println(s"  Arguments: ${write[Input](input)}")
       result match
         case Success(output) =>
-          if state.verbose then
-            println(s"  Result: ${write[Output](output)}")
+          println(s"  Result: ${write[Output](output)}")
         case Failure(ex) =>
-          if state.verbose then
-            println(s"  Error: ${ex.getMessage}")
+          println(s"  Error: ${ex.getMessage}")
 
     result
 

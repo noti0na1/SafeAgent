@@ -86,7 +86,7 @@ class ReActAgent(
               // Continue the loop with tool results
               loop(iteration + 1, fullMsg)
             else
-              // Add final reponse to messages
+              // Add final response to messages
               val resultMsg = response.content.getOrElse("")
               fullMsg.append(resultMsg)
               addMessage(Message.assistant(resultMsg))
