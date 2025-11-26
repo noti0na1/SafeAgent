@@ -16,15 +16,19 @@ import scala.annotation.tailrec
  */
 class ReActAgent(
   val config: AgentConfig,
+  private val chatClient: ChatClient,
   val tools: List[ToolBase],
   var messages: List[Message],
-  val state: State,
-  private val chatClient: ChatClient,
+  var state: State
 ) extends Agent:
 
   type Response = (ReActAgent, ChatResponse)
 
   given State = state
+
+  override def reset(): Unit =
+    messages = List.empty
+    state.clear()
 
   /** Create a new instance with updated messages */
   private def withMessages(newMessages: List[Message]): this.type =
@@ -118,7 +122,7 @@ object ReActAgent:
     messages: List[Message] = List.empty,
     state: State = new State()
   ): ReActAgent =
-    new ReActAgent(agentConfig, tools, messages, state, chatClient)
+    new ReActAgent(agentConfig, chatClient, tools, messages, state)
 
   /**
    *  Create a new ReActAgent with a default ChatClient.
@@ -141,4 +145,4 @@ object ReActAgent:
     state: State = new State()
   ): ReActAgent =
     val chatClient = ChatClient(modelConfig)
-    new ReActAgent(agentConfig, tools, messages, state, chatClient)
+    new ReActAgent(agentConfig, chatClient, tools, messages, state)

@@ -1,6 +1,6 @@
 name := "safe-agent"
 version := "0.1.0"
-scalaVersion := "3.8.0-RC1"
+scalaVersion := "3.8.0-RC2"
 
 libraryDependencies ++= Seq(
   "com.openai" % "openai-java" % "4.8.0",

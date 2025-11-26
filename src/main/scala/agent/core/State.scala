@@ -14,7 +14,7 @@ object State:
   class PersistentKey[V: ReadWriter](name: String, default: () => V) extends Key[V](name, default):
     override val persistent: Boolean = true
     def getRW: ReadWriter[V] = summon[ReadWriter[V]]
-  
+
 class State:
   var verbose: Boolean = false
 
@@ -28,6 +28,9 @@ class State:
 
   def getOrElse[T](key: State.Key[T], default: T): T =
     storage.getOrElseUpdate(key, default).asInstanceOf[T]
+
+  def clear(): Unit =
+    storage.clear()
 
   def getPersistentKeys: List[Key[?]] =
     storage.keys.filter(_.persistent).toList

@@ -18,6 +18,12 @@ trait Agent:
   /** Complete conversation history including user, assistant, and tool messages */
   def messages: List[Message]
 
+  /** Current state of the agent */
+  def state: State
+
+  /** Reset the conversation history and state */
+  def reset(): Unit
+
   /**
    *  Add a single message to the conversation history.
    *  @param message The message to add
